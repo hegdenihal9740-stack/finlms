@@ -100,6 +100,10 @@ export default function StudentOnboarding({ step, onPasswordChanged, onProfileCo
       setError("The passwords do not match.");
       return;
     }
+    if (!globalThis.crypto?.subtle) {
+      setError("Password setup requires a secure HTTPS connection. Open the portal using its HTTPS address and try again.");
+      return;
+    }
     setBusy(true);
     try {
       const passwordHash = await hashStudentPassword(password);

@@ -6,10 +6,10 @@ import logoFull from '../assets/skillai-fee-logo.png'
 const fmt = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) }
 const today = () => new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 
-export default function CertificateRequest({ data, updateData }) {
+export default function CertificateRequest({ data, updateData, previewMode = false }) {
   const requests = data.certRequests || []
   const done = data.courses.filter(c => c.progress === 100).length
-  const eligible = data.courses.length > 0 && done === data.courses.length
+  const eligible = (data.courses.length > 0 && done === data.courses.length) || previewMode
   const savedProfile = (() => {
     try {
       return JSON.parse(localStorage.getItem(profileKey()) || 'null') || {}
@@ -44,6 +44,7 @@ export default function CertificateRequest({ data, updateData }) {
 
   return <div className="page-stack">
     <div><span className="eyebrow">AFTER COURSE COMPLETION</span><h2 style={{ margin: '4px 0' }}>Certificate Request</h2><p className="muted-text">Fill the certificate application form once you finish the full course.</p></div>
+    {previewMode && <div className="notice-card" role="status"><Award size={19}/><div><strong>Preview only</strong><p>The form is unlocked for review. Submissions stay on this device and will not be sent to the institute or issue a certificate.</p></div></div>}
     {notice && <div className="success-banner"><CheckCircle2 size={17}/>{notice}<button onClick={() => setNotice('')}><X size={15}/></button></div>}
     {requests.length > 0 && <section className="panel"><h3>Your applications</h3>{requests.map(r => <p key={r.id}><Award size={14}/> <strong>{r.id}</strong> · {r.course} · Applied {r.date} · <span className="status-pill status-pending"><i/>{r.status}</span></p>)}</section>}
     {!eligible ? <section className="panel cert-locked"><Lock size={28}/><h3>Finish your course first</h3><p>You have completed {done} of {data.courses.length} modules. The certificate form opens after all modules are done.</p></section> :

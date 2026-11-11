@@ -1,4 +1,3 @@
-if (typeof document !== "undefined") document.addEventListener("pointerdown", e => { const b = e.target.closest?.("button"); if (!b || b.disabled) return; b.classList.remove("tapping"); void b.offsetWidth; b.classList.add("tapping"); b.addEventListener("animationend", () => b.classList.remove("tapping"), { once: true }) }, { passive: true })
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import './campusly.css'
@@ -691,7 +690,9 @@ function PortalApp() {
   const previewMode = import.meta.env.DEV && !cloudConfigured
   const [loggedIn, setLoggedIn] = useState(() => { const demo = localStorage.getItem('campusly-demo-session') === DEMO_USER.email; if (demo) setCurrentUser({ ...DEMO_USER }); return demo })
   const [onboardingStep, setOnboardingStep] = useState(() =>
-    localStorage.getItem('campusly-demo-session') === DEMO_USER.email ? getDemoOnboardingStep() : null,
+    !previewMode && localStorage.getItem('campusly-demo-session') === DEMO_USER.email
+      ? getDemoOnboardingStep()
+      : null,
   )
   const [page, setPage] = usePortalState('page', 'dashboard')
   const [data, setData] = useState(loadDemoData)
@@ -712,30 +713,34 @@ function PortalApp() {
   useEffect(() => { saveDemoData(data) }, [data])
   useEffect(() => { const onKey = e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.querySelector('.global-search input')?.focus() } }; window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey) }, [])
   useEffect(() => {
-    // Ripple wave: spawn a soft circle under the pointer on any touchable press.
     const TAP_TARGETS = 'button, .course-card, .course-row, .class-card, .assignment-card, .notice-card, .deadline-item, .fee-challan, .notification-content'
-    const spawn = e => {
-      const btn = e.target?.closest?.(TAP_TARGETS)
-      if (!btn) return
-      if (btn.matches('button') && btn.disabled) return
-      const rect = btn.getBoundingClientRect()
+    const timeouts = new WeakMap()
+    const spawn = event => {
+      const target = event.target?.closest?.(TAP_TARGETS)
+      if (!target || (target.matches('button') && target.disabled)) return
+      const button = target.matches('button')
+      const animationClass = button ? 'tapping' : 'touch-tapping'
+      target.classList.remove(animationClass)
+      void target.offsetWidth
+      target.classList.add(animationClass)
+      window.clearTimeout(timeouts.get(target))
+      timeouts.set(target, window.setTimeout(() => target.classList.remove(animationClass), 500))
+      const rect = target.getBoundingClientRect()
       const size = Math.max(rect.width, rect.height) * 0.9
-      const x = e.clientX || e.clientY ? e.clientX - rect.left : rect.width / 2
-      const y = e.clientX || e.clientY ? e.clientY - rect.top : rect.height / 2
+      const x = event.clientX || event.clientY ? event.clientX - rect.left : rect.width / 2
+      const y = event.clientX || event.clientY ? event.clientY - rect.top : rect.height / 2
       const ripple = document.createElement('span')
       ripple.className = 'click-ripple'
       ripple.style.width = ripple.style.height = `${size}px`
       ripple.style.left = `${x - size / 2}px`
       ripple.style.top = `${y - size / 2}px`
-      btn.appendChild(ripple)
+      target.appendChild(ripple)
       ripple.addEventListener('animationend', () => ripple.remove())
+      window.setTimeout(() => ripple.remove(), 700)
     }
     document.addEventListener('pointerdown', spawn)
-    // Lets the :active press state work on iOS for non-button elements too.
-    document.addEventListener('touchstart', () => {}, { passive: true })
     return () => {
       document.removeEventListener('pointerdown', spawn)
-      document.removeEventListener('touchstart', () => {})
     }
   }, [])
   const updateData = updater => setData(prev => typeof updater === 'function' ? updater(prev) : updater)
@@ -744,8 +749,8 @@ function PortalApp() {
   function login(acc, skipDemoOnboarding = false) { setCurrentUser(acc); localStorage.setItem('campusly-demo-session', acc.email); setData(loadDemoData()); setOnboardingStep(acc.email === DEMO_USER.email && !skipDemoOnboarding ? getDemoOnboardingStep() : null); resetNavigation(); setLoggedIn(true) }
   if (!authReady) return <div className="login-main min-h-screen" role="status">Loading…</div>
   if (!loggedIn || recovery) return <Login onLogin={login} previewMode={previewMode}/>
-  if (onboardingStep === 'password') return <StudentOnboarding step="password" onPasswordChanged={() => setOnboardingStep('profile')}/>
-  if (onboardingStep === 'profile') return <StudentOnboarding step="profile" onProfileCompleted={() => setOnboardingStep(null)}/>
+  if (!previewMode && onboardingStep === 'password') return <StudentOnboarding step="password" onPasswordChanged={() => setOnboardingStep('profile')}/>
+  if (!previewMode && onboardingStep === 'profile') return <StudentOnboarding step="profile" onProfileCompleted={() => setOnboardingStep(null)}/>
 
   const Profile = StudentProfile
   const pageInfo = titles[page] || titles.dashboard
@@ -778,7 +783,7 @@ function PortalApp() {
             {page === 'fees' && <Fees data={data}/>}
             {page === 'leave' && <Leave data={data} updateData={updateData}/>}
             {page === 'feedback' && <Feedback data={data} updateData={updateData}/>}
-            {page === 'certrequest' && <CertificateRequest data={data} updateData={updateData}/>}
+            {page === 'certrequest' && <CertificateRequest data={data} updateData={updateData} previewMode={previewMode}/>}
             {page === 'certificates' && <Certificates data={data}/>}
             {page === 'resume' && <Resume data={data}/>}
             {page === 'notifications' && <Notifications data={data} updateData={updateData}/>}
